@@ -10,17 +10,16 @@ on:
 jobs:
   build:
     name: Build iOS App
-    runs-on: macos-latest  # Changed from macos-13 to macos-latest
+    runs-on: macos-latest
     
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
     
-    - name: Select Xcode Version
-      run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
-    
     - name: Show Xcode Version
-      run: xcodebuild -version
+      run: |
+        xcodebuild -version
+        xcode-select -p
     
     - name: Build iOS App
       run: |
