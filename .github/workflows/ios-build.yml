@@ -1,0 +1,64 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build iOS App
+    runs-on: macos-13
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '15.0'
+    
+    - name: Show Xcode Version
+      run: xcodebuild -version
+    
+    - name: Build iOS App
+      run: |
+        cd AI_Live_Trainer_System
+        xcodebuild clean build \
+          -scheme AI_Live_Trainer_System \
+          -sdk iphoneos \
+          -configuration Release \
+          -destination 'generic/platform=iOS' \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO
+    
+    - name: Create Archive
+      run: |
+        cd AI_Live_Trainer_System
+        xcodebuild archive \
+          -scheme AI_Live_Trainer_System \
+          -sdk iphoneos \
+          -archivePath $PWD/build/AI_Trainer.xcarchive \
+          -configuration Release \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO
+    
+    - name: Create IPA
+      run: |
+        cd AI_Live_Trainer_System/build/AI_Trainer.xcarchive/Products/Applications
+        mkdir Payload
+        cp -r *.app Payload/
+        zip -r AI_Live_Trainer.ipa Payload
+        mv AI_Live_Trainer.ipa ../../../../
+    
+    - name: Upload IPA
+      uses: actions/upload-artifact@v4
+      with:
+        name: AI-Live-Trainer-IPA
+        path: AI_Live_Trainer_System/AI_Live_Trainer.ipa
+        retention-days: 30
