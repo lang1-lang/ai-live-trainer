@@ -149,7 +149,6 @@ class AITrainerEngine {
         
         let avgShoulderY = (leftShoulder.location.y + rightShoulder.location.y) / 2
         let avgElbowY = (leftElbow.location.y + rightElbow.location.y) / 2
-        let avgWristY = (leftWrist.location.y + rightWrist.location.y) / 2
         
         // Check elbow angle for proper depth
         let elbowDepth = avgShoulderY - avgElbowY

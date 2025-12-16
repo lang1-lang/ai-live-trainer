@@ -6,6 +6,7 @@
 import Foundation
 import AVFoundation
 
+@MainActor
 class VoiceFeedbackManager: NSObject {
     static let shared = VoiceFeedbackManager()
     
