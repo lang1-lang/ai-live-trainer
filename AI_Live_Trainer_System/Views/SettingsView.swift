@@ -22,8 +22,8 @@ struct SettingsView: View {
                             Text("Voice Coaching")
                         }
                     }
-                    .onChange(of: voiceFeedbackEnabled) { value in
-                        VoiceFeedbackManager.shared.setEnabled(value)
+                    .onChange(of: voiceFeedbackEnabled) {
+                        VoiceFeedbackManager.shared.setEnabled(voiceFeedbackEnabled)
                     }
                     
                     Toggle(isOn: $hapticFeedbackEnabled) {

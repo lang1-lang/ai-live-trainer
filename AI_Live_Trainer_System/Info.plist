@@ -41,6 +41,10 @@
 	<string>1</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.lang1lang.AI-Live-Trainer-System</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIStatusBarStyle</key>

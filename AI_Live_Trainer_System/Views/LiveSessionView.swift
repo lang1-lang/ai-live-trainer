@@ -121,8 +121,8 @@ struct LiveSessionView: View {
         } message: {
             Text("Are you sure you want to end this workout?")
         }
-        .onChange(of: sessionManager.workoutCompleted) { completed in
-            if completed {
+        .onChange(of: sessionManager.workoutCompleted) {
+            if sessionManager.workoutCompleted {
                 showingPostWorkout = true
             }
         }
