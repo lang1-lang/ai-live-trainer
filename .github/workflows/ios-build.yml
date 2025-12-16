@@ -23,8 +23,8 @@ jobs:
     
     - name: Build iOS App
       run: |
-        cd AI_Live_Trainer_System
         xcodebuild clean build \
+          -project AI_Live_Trainer_System.xcodeproj \
           -scheme AI_Live_Trainer_System \
           -sdk iphoneos \
           -configuration Release \
@@ -35,8 +35,8 @@ jobs:
     
     - name: Create Archive
       run: |
-        cd AI_Live_Trainer_System
         xcodebuild archive \
+          -project AI_Live_Trainer_System.xcodeproj \
           -scheme AI_Live_Trainer_System \
           -sdk iphoneos \
           -archivePath $PWD/build/AI_Trainer.xcarchive \
@@ -47,15 +47,15 @@ jobs:
     
     - name: Create IPA
       run: |
-        cd AI_Live_Trainer_System/build/AI_Trainer.xcarchive/Products/Applications
+        cd build/AI_Trainer.xcarchive/Products/Applications
         mkdir Payload
         cp -r *.app Payload/
         zip -r AI_Live_Trainer.ipa Payload
-        mv AI_Live_Trainer.ipa ../../../../
+        mv AI_Live_Trainer.ipa ../../../..
     
     - name: Upload IPA
       uses: actions/upload-artifact@v4
       with:
         name: AI-Live-Trainer-IPA
-        path: AI_Live_Trainer_System/AI_Live_Trainer.ipa
+        path: AI_Live_Trainer.ipa
         retention-days: 30
