@@ -91,8 +91,6 @@ class AITrainerEngine {
               let rightShoulder = try? observation.recognizedPoint(.rightShoulder),
               let leftHip = try? observation.recognizedPoint(.leftHip),
               let rightHip = try? observation.recognizedPoint(.rightHip),
-              let leftAnkle = try? observation.recognizedPoint(.leftAnkle),
-              let rightAnkle = try? observation.recognizedPoint(.rightAnkle),
               leftShoulder.confidence > 0.5,
               rightShoulder.confidence > 0.5,
               leftHip.confidence > 0.5,
