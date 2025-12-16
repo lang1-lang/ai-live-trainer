@@ -6,7 +6,7 @@
 import Foundation
 import AVFoundation
 
-class VoiceFeedbackManager: NSObject {
+class VoiceFeedbackManager: NSObject, @unchecked Sendable {
     static let shared = VoiceFeedbackManager()
     
     private let speechSynthesizer = AVSpeechSynthesizer()

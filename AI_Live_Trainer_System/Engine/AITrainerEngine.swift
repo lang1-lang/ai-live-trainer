@@ -102,7 +102,6 @@ class AITrainerEngine {
         
         let avgShoulderY = (leftShoulder.location.y + rightShoulder.location.y) / 2
         let avgHipY = (leftHip.location.y + rightHip.location.y) / 2
-        let avgAnkleY = (leftAnkle.location.y + rightAnkle.location.y) / 2
         
         // Check body alignment - should form a straight line
         // If hips are sagging
