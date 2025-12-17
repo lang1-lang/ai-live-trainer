@@ -34,13 +34,13 @@ class AITrainerEngine {
         
         // Route to 3D analyzer
         if exerciseLower.contains("squat") {
-            return biomechanicsEngine.analyzeSquat3D(joints3D: joints3D, timestamp: timestamp)
+            return biomechanicsEngine.analyzeSquat3D(joints: joints3D, timestamp: timestamp)
         } else if exerciseLower.contains("plank") {
-            return biomechanicsEngine.analyzePlank3D(joints3D: joints3D, timestamp: timestamp)
+            return biomechanicsEngine.analyzePlank3D(joints: joints3D, timestamp: timestamp)
         } else if exerciseLower.contains("push") {
-            return biomechanicsEngine.analyzePushUp3D(joints3D: joints3D, timestamp: timestamp)
+            return biomechanicsEngine.analyzePushUp3D(joints: joints3D, timestamp: timestamp)
         } else if exerciseLower.contains("lunge") {
-            return biomechanicsEngine.analyzeLunge3D(joints3D: joints3D, timestamp: timestamp)
+            return biomechanicsEngine.analyzeLunge3D(joints: joints3D, timestamp: timestamp)
         } else {
             return BiometricResult(
                 isCorrect: true,
