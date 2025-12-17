@@ -100,7 +100,7 @@ struct DepthAwareSkeletonView: View {
                 .opacity(Double(confidence))
             
             // Joint size based on confidence (higher confidence = larger)
-            let jointRadius = 6.0 + (Double(confidence) * 6.0)
+            let jointRadius = CGFloat(6.0 + (Double(confidence) * 6.0))
             
             let circle = Path { path in
                 path.addEllipse(in: CGRect(
@@ -227,11 +227,11 @@ struct DepthAwareSkeletonView: View {
         
         // Closer objects get thicker lines for visual depth cue
         if absDepth < 1.5 {
-            return 5.0
+            return CGFloat(5.0)
         } else if absDepth < 2.5 {
-            return 4.0
+            return CGFloat(4.0)
         } else {
-            return 3.0
+            return CGFloat(3.0)
         }
     }
     
