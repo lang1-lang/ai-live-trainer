@@ -26,6 +26,7 @@ class LiveSessionManager: NSObject, ObservableObject {
     
     // Phase 2: 3D joint positions in metric space
     @Published var bodyPoints3D: [VNHumanBodyPoseObservation.JointName: simd_float3] = [:]
+    @Published var jointConfidences: [VNHumanBodyPoseObservation.JointName: Float] = [:]
     @Published var deviceMode: DeviceCapabilityMode = .standard
     
     // Camera session
@@ -414,6 +415,13 @@ extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         // Update 3D body points for visualization
         DispatchQueue.main.async {
             self.bodyPoints3D = metricJoints
+            
+            // 3D observations don't have per-joint confidence, use default high confidence
+            var confidences: [VNHumanBodyPoseObservation.JointName: Float] = [:]
+            for jointName in metricJoints.keys {
+                confidences[jointName] = 0.85  // Default confidence for successfully detected joints
+            }
+            self.jointConfidences = confidences
         }
         
         // Extract 2D points for legacy visualization compatibility

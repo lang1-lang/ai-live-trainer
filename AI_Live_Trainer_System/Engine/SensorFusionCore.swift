@@ -93,54 +93,37 @@ class SensorFusionCore {
             let depthHeight = CVPixelBufferGetHeight(depthMap)
             
             for joint3D in allJoints3D {
-                if let recognizedPoint = try? observation.recognizedPoint(joint3D),
-                   recognizedPoint.confidence > 0.3,
+                if let point3D = try? observation.recognizedPoint(joint3D),
                    let joint2D = jointMapping[joint3D] {
                     
-                    // Get 2D normalized coordinates (0-1 range)
-                    let normalizedX = recognizedPoint.location.x
-                    let normalizedY = 1.0 - recognizedPoint.location.y  // Flip Y coordinate
-                    
-                    // Convert to depth map pixel coordinates
-                    let depthX = Int(normalizedX * CGFloat(depthWidth))
-                    let depthY = Int(normalizedY * CGFloat(depthHeight))
-                    
-                    // Query depth value at joint location
-                    let depth = queryDepthValue(
-                        depthMap: depthMap,
-                        x: depthX,
-                        y: depthY,
-                        width: depthWidth,
-                        height: depthHeight
+                    // Extract 3D position from transformation matrix (Apple verified API)
+                    // Source: https://developer.apple.com/documentation/vision/vnhumanbodyrecognizedpoint3d
+                    let position = simd_float3(
+                        point3D.localPosition.columns.3.x,
+                        point3D.localPosition.columns.3.y,
+                        point3D.localPosition.columns.3.z
                     )
                     
-                    // Construct 3D metric position
-                    // Vision already provides camera-relative coordinates
-                    // We enhance with actual depth measurement
-                    let position3D = simd_float3(
-                        Float(normalizedX - 0.5) * 2.0,  // X: normalized to [-1, 1]
-                        Float(normalizedY - 0.5) * 2.0,  // Y: normalized to [-1, 1]
-                        depth  // Z: actual metric depth from LiDAR
-                    )
-                    
-                    metricJoints[joint2D] = toAnatomicalSpace(position3D)
+                    // Store in anatomical coordinate space
+                    metricJoints[joint2D] = toAnatomicalSpace(position)
                 }
             }
         } else {
             // Standard mode: Use Vision's built-in 3D estimation without depth enhancement
             for joint3D in allJoints3D {
-                if let recognizedPoint = try? observation.recognizedPoint(joint3D),
-                   recognizedPoint.confidence > 0.3,
+                if let point3D = try? observation.recognizedPoint(joint3D),
                    let joint2D = jointMapping[joint3D] {
                     
-                    // Use normalized coordinates with estimated depth
-                    let position3D = simd_float3(
-                        Float(recognizedPoint.location.x - 0.5) * 2.0,
-                        Float((1.0 - recognizedPoint.location.y) - 0.5) * 2.0,
-                        1.5  // Estimated depth in meters (average user distance)
+                    // Extract 3D position from transformation matrix (Apple verified API)
+                    // Source: https://developer.apple.com/documentation/vision/vnhumanbodyrecognizedpoint3d
+                    let position = simd_float3(
+                        point3D.localPosition.columns.3.x,
+                        point3D.localPosition.columns.3.y,
+                        point3D.localPosition.columns.3.z
                     )
                     
-                    metricJoints[joint2D] = toAnatomicalSpace(position3D)
+                    // Store in anatomical coordinate space
+                    metricJoints[joint2D] = toAnatomicalSpace(position)
                 }
             }
         }
@@ -238,18 +221,16 @@ class SensorFusionCore {
         ]
         
         for joint3D in allJoints3D {
-            if let recognizedPoint = try? observation.recognizedPoint(joint3D),
-               recognizedPoint.confidence > 0.3,
+            if let point3D = try? observation.recognizedPoint(joint3D),
                let joint2D = jointMapping[joint3D] {
                 
-                // Vision 3D coordinates are in camera-relative space
-                // X: right(+) / left(-)
-                // Y: up(+) / down(-)
-                // Z: toward camera(+) / away(-)
+                // Extract 3D position from transformation matrix (Apple verified API)
+                // Vision 3D coordinates are in camera-relative space (meters)
+                // Source: https://developer.apple.com/documentation/vision/vnhumanbodyrecognizedpoint3d
                 let position = simd_float3(
-                    Float(recognizedPoint.location.x),
-                    Float(recognizedPoint.location.y),
-                    Float(recognizedPoint.location.z ?? 1.5)  // Use default if Z unavailable
+                    point3D.localPosition.columns.3.x,
+                    point3D.localPosition.columns.3.y,
+                    point3D.localPosition.columns.3.z
                 )
                 
                 metricJoints[joint2D] = toAnatomicalSpace(position)

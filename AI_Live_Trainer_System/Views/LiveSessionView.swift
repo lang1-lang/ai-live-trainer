@@ -213,11 +213,17 @@ struct LiveSessionView: View {
     
     // MARK: - Helper Functions
     
-    /// Extracts confidence scores from 3D joints (all set to 1.0 for now)
-    /// In future, this could be extracted from Vision observations
+    /// Extracts confidence scores from session manager
+    /// 3D observations don't have per-joint confidence, so we use defaults
     private func extractConfidences(
         from joints: [VNHumanBodyPoseObservation.JointName: simd_float3]
     ) -> [VNHumanBodyPoseObservation.JointName: Float] {
+        // Use confidence values from session manager if available
+        if !sessionManager.jointConfidences.isEmpty {
+            return sessionManager.jointConfidences
+        }
+        
+        // Fallback: default confidence for all joints
         var confidences: [VNHumanBodyPoseObservation.JointName: Float] = [:]
         for jointName in joints.keys {
             confidences[jointName] = 0.85  // Default high confidence
