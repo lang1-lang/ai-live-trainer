@@ -46,7 +46,7 @@ class SensorFusionCore {
         
         var metricJoints: [VNHumanBodyPoseObservation.JointName: simd_float3] = [:]
         
-        // Define all joints to extract
+        // Define all joints to extract (using 2D joint names for compatibility)
         let allJoints: [VNHumanBodyPoseObservation.JointName] = [
             .root, .neck, .nose,
             .leftShoulder, .leftElbow, .leftWrist,
@@ -101,7 +101,8 @@ class SensorFusionCore {
         } else {
             // Standard mode: Use Vision's built-in 3D estimation without depth enhancement
             for joint in allJoints {
-                if let recognizedPoint = try? observation.recognizedPoint(joint),
+                // Convert 2D joint name to string and use for 3D observation
+                if let recognizedPoint = try? observation.recognizedPoint(VNHumanBodyPoseObservation.JointName(rawValue: joint.rawValue)),
                    recognizedPoint.confidence > 0.3 {
                     
                     // Use normalized coordinates with estimated depth
@@ -173,6 +174,7 @@ class SensorFusionCore {
         
         var metricJoints: [VNHumanBodyPoseObservation.JointName: simd_float3] = [:]
         
+        // Use 2D joint names for compatibility
         let allJoints: [VNHumanBodyPoseObservation.JointName] = [
             .root, .neck, .nose,
             .leftShoulder, .leftElbow, .leftWrist,
@@ -182,7 +184,8 @@ class SensorFusionCore {
         ]
         
         for joint in allJoints {
-            if let recognizedPoint = try? observation.recognizedPoint(joint),
+            // Convert 2D joint name for 3D observation lookup
+            if let recognizedPoint = try? observation.recognizedPoint(VNHumanBodyPoseObservation.JointName(rawValue: joint.rawValue)),
                recognizedPoint.confidence > 0.3 {
                 
                 // Vision 3D coordinates are in camera-relative space
