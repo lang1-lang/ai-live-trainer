@@ -30,6 +30,12 @@
 		F021 /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = S021; };
 		F022 /* CameraPermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = S022; };
 		F023 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = S023; };
+		F024 /* BiomechanicsEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = S025; };
+		F025 /* DeviceCapabilityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = S026; };
+		F026 /* SensorFusionCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = S027; };
+		F027 /* SessionAnalyticsEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = S028; };
+		F028 /* BiometricResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = S029; };
+		F029 /* DepthAwareSkeletonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = S030; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -58,6 +64,12 @@
 		S022 /* CameraPermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPermissionManager.swift; sourceTree = "<group>"; };
 		S023 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		S024 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		S025 /* BiomechanicsEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiomechanicsEngine.swift; sourceTree = "<group>"; };
+		S026 /* DeviceCapabilityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceCapabilityManager.swift; sourceTree = "<group>"; };
+		S027 /* SensorFusionCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorFusionCore.swift; sourceTree = "<group>"; };
+		S028 /* SessionAnalyticsEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionAnalyticsEngine.swift; sourceTree = "<group>"; };
+		S029 /* BiometricResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricResult.swift; sourceTree = "<group>"; };
+		S030 /* DepthAwareSkeletonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepthAwareSkeletonView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -107,6 +119,7 @@
 				S010 /* ActivityView.swift */,
 				S011 /* AIInsightsView.swift */,
 				S012 /* SettingsView.swift */,
+				S030 /* DepthAwareSkeletonView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -117,6 +130,7 @@
 				S013 /* WorkoutModel.swift */,
 				S014 /* WorkoutSession.swift */,
 				S015 /* UserStats.swift */,
+				S029 /* BiometricResult.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -128,6 +142,10 @@
 				S017 /* AITrainerEngine.swift */,
 				S018 /* VoiceFeedbackManager.swift */,
 				S019 /* DemoModeManager.swift */,
+				S025 /* BiomechanicsEngine.swift */,
+				S026 /* DeviceCapabilityManager.swift */,
+				S027 /* SensorFusionCore.swift */,
+				S028 /* SessionAnalyticsEngine.swift */,
 			);
 			path = Engine;
 			sourceTree = "<group>";
@@ -241,6 +259,12 @@
 				F020 /* HapticFeedback.swift in Sources */,
 				F021 /* Extensions.swift in Sources */,
 				F022 /* CameraPermissionManager.swift in Sources */,
+				F024 /* BiomechanicsEngine.swift in Sources */,
+				F025 /* DeviceCapabilityManager.swift in Sources */,
+				F026 /* SensorFusionCore.swift in Sources */,
+				F027 /* SessionAnalyticsEngine.swift in Sources */,
+				F028 /* BiometricResult.swift in Sources */,
+				F029 /* DepthAwareSkeletonView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
