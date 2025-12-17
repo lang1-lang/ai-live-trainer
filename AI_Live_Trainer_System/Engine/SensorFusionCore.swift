@@ -46,13 +46,32 @@ class SensorFusionCore {
         
         var metricJoints: [VNHumanBodyPoseObservation.JointName: simd_float3] = [:]
         
-        // Define all joints to extract (using 2D joint names for compatibility)
-        let allJoints: [VNHumanBodyPoseObservation.JointName] = [
-            .root, .neck, .nose,
+        // Define all joints to extract using 3D joint names
+        let allJoints3D: [VNHumanBodyPose3DObservation.JointName] = [
+            .root, .centerHead, .centerShoulder,
             .leftShoulder, .leftElbow, .leftWrist,
             .rightShoulder, .rightElbow, .rightWrist,
             .leftHip, .leftKnee, .leftAnkle,
             .rightHip, .rightKnee, .rightAnkle
+        ]
+        
+        // Mapping from 3D to 2D joint names
+        let jointMapping: [VNHumanBodyPose3DObservation.JointName: VNHumanBodyPoseObservation.JointName] = [
+            .root: .root,
+            .centerHead: .nose,
+            .centerShoulder: .neck,
+            .leftShoulder: .leftShoulder,
+            .leftElbow: .leftElbow,
+            .leftWrist: .leftWrist,
+            .rightShoulder: .rightShoulder,
+            .rightElbow: .rightElbow,
+            .rightWrist: .rightWrist,
+            .leftHip: .leftHip,
+            .leftKnee: .leftKnee,
+            .leftAnkle: .leftAnkle,
+            .rightHip: .rightHip,
+            .rightKnee: .rightKnee,
+            .rightAnkle: .rightAnkle
         ]
         
         // Pro mode with depth data available
@@ -95,15 +114,15 @@ class SensorFusionCore {
                         depth  // Z: actual metric depth from LiDAR
                     )
                     
-                    metricJoints[joint] = toAnatomicalSpace(position3D)
+                    metricJoints[joint2D] = toAnatomicalSpace(position3D)
                 }
             }
         } else {
             // Standard mode: Use Vision's built-in 3D estimation without depth enhancement
-            for joint in allJoints {
-                // Convert 2D joint name to string and use for 3D observation
-                if let recognizedPoint = try? observation.recognizedPoint(VNHumanBodyPoseObservation.JointName(rawValue: joint.rawValue)),
-                   recognizedPoint.confidence > 0.3 {
+            for joint3D in allJoints3D {
+                if let recognizedPoint = try? observation.recognizedPoint(joint3D),
+                   recognizedPoint.confidence > 0.3,
+                   let joint2D = jointMapping[joint3D] {
                     
                     // Use normalized coordinates with estimated depth
                     let position3D = simd_float3(
@@ -112,7 +131,7 @@ class SensorFusionCore {
                         1.5  // Estimated depth in meters (average user distance)
                     )
                     
-                    metricJoints[joint] = toAnatomicalSpace(position3D)
+                    metricJoints[joint2D] = toAnatomicalSpace(position3D)
                 }
             }
         }
@@ -174,19 +193,38 @@ class SensorFusionCore {
         
         var metricJoints: [VNHumanBodyPoseObservation.JointName: simd_float3] = [:]
         
-        // Use 2D joint names for compatibility
-        let allJoints: [VNHumanBodyPoseObservation.JointName] = [
-            .root, .neck, .nose,
+        // Use 3D joint names
+        let allJoints3D: [VNHumanBodyPose3DObservation.JointName] = [
+            .root, .centerHead, .centerShoulder,
             .leftShoulder, .leftElbow, .leftWrist,
             .rightShoulder, .rightElbow, .rightWrist,
             .leftHip, .leftKnee, .leftAnkle,
             .rightHip, .rightKnee, .rightAnkle
         ]
         
-        for joint in allJoints {
-            // Convert 2D joint name for 3D observation lookup
-            if let recognizedPoint = try? observation.recognizedPoint(VNHumanBodyPoseObservation.JointName(rawValue: joint.rawValue)),
-               recognizedPoint.confidence > 0.3 {
+        // Mapping to 2D joint names for return type
+        let jointMapping: [VNHumanBodyPose3DObservation.JointName: VNHumanBodyPoseObservation.JointName] = [
+            .root: .root,
+            .centerHead: .nose,
+            .centerShoulder: .neck,
+            .leftShoulder: .leftShoulder,
+            .leftElbow: .leftElbow,
+            .leftWrist: .leftWrist,
+            .rightShoulder: .rightShoulder,
+            .rightElbow: .rightElbow,
+            .rightWrist: .rightWrist,
+            .leftHip: .leftHip,
+            .leftKnee: .leftKnee,
+            .leftAnkle: .leftAnkle,
+            .rightHip: .rightHip,
+            .rightKnee: .rightKnee,
+            .rightAnkle: .rightAnkle
+        ]
+        
+        for joint3D in allJoints3D {
+            if let recognizedPoint = try? observation.recognizedPoint(joint3D),
+               recognizedPoint.confidence > 0.3,
+               let joint2D = jointMapping[joint3D] {
                 
                 // Vision 3D coordinates are in camera-relative space
                 // X: right(+) / left(-)
@@ -198,7 +236,7 @@ class SensorFusionCore {
                     Float(recognizedPoint.location.z ?? 1.5)  // Use default if Z unavailable
                 )
                 
-                metricJoints[joint] = toAnatomicalSpace(position)
+                metricJoints[joint2D] = toAnatomicalSpace(position)
             }
         }
         
