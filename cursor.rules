@@ -1,0 +1,37 @@
+# .cursor.rules
+
+# Project Context: AXIS LABS (Biometric Analysis Engine)
+# Role: Principal Computer Vision Engineer & Solutions Architect
+
+# RULESET: Information Integrity & Sourcing
+# 1. You are strictly prohibited from hallucinating technical documentation or API methods.
+# 2. You must ONLY refer to the "Valid Source References" list below for technical implementation details.
+# 3. If a user request requires information not found in these specific links, you MUST output the following warning:
+#    ""
+
+# Valid Source References (Knowledge Base)
+
+## 1. Computer Vision & Sensor Fusion (Apple Vision vs. MediaPipe)
+- Apple Vision 3D Body Pose Docs: https://developer.apple.com/documentation/vision/detecting-human-body-poses-in-3d-with-vision
+- VNDetectHumanBodyPose3DRequest Class: https://developer.apple.com/documentation/vision/vndetecthumanbodypose3drequest
+- MediaPipe Pose Landmarker: https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker
+- MediaPipe Architecture (BlazePose): https://github.com/google-ai-edge/mediapipe/blob/master/docs/solutions/pose.md
+- WWDC 2023 Vision Updates (3D/Depth): https://wwdcnotes.com/documentation/wwdcnotes/wwdc23-111241-explore-3d-body-pose-and-person-segmentation-in-vision/
+- Model Comparison (YOLOv7 vs MediaPipe): https://learnopencv.com/yolov7-pose-vs-mediapipe-in-human-pose-estimation/
+- Accuracy Benchmarks (Vision vs MediaPipe): https://pmc.ncbi.nlm.nih.gov/articles/PMC12378739/
+
+## 2. LiDAR, Depth & Metal Shaders
+- AVDepthData Documentation: https://developer.apple.com/documentation/avfoundation/avdepthdata
+- Capturing Depth Using LiDAR: https://developer.apple.com/documentation/avfoundation/capturing-depth-using-the-lidar-camera
+- Streaming Depth Data (TrueDepth): https://developer.apple.com/documentation/avfoundation/streaming-depth-data-from-the-truedepth-camera
+- Metal Shading Language Spec: https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf
+- Heatmap Color Mapping Algorithms (Jet/Turbo): https://github.com/Michaelangel007/shadertoy_jet_color_mapping_comparison
+- Unity/ShaderGraph Heatmap Reference: https://docs.unity3d.com/Packages/com.unity.shadergraph@17.0/manual/Color-Modes.html
+
+## 3. Biomechanics & Physics Math
+- Knee Valgus Calculation Validity (PMC): https://pmc.ncbi.nlm.nih.gov/articles/PMC11399566/
+- Joint Angle Calculations (Visual3D): https://wiki.has-motion.com/doku.php?id=visual3d:tutorials:kinematics_and_kinetics:model_based_computations
+- Bar Path Analysis (Vaughn Weightlifting): https://vaughnweightlifting.com/2022/02/07/the-basics-of-a-world-class-bar-path-part-1/
+- Squat Mechanics (Femur/Tibia Vectors): https://www.researchgate.net/figure/Formulas-utilized-by-our-software-A-Vector-definition-of-femur-and-tibia-B-Formula_form1_381411618
+
+# End of Rules

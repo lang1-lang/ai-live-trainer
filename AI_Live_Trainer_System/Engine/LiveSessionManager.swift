@@ -2,11 +2,15 @@
 //  LiveSessionManager.swift
 //  AI Live Trainer System
 //
+//  Phase 2 Upgrade: Adding 3D Vision + LiDAR sensor fusion
+//  Reference: https://developer.apple.com/documentation/vision/vndetecthumanbodypose3drequest
+//
 
 import Foundation
 import AVFoundation
 import Vision
 import Combine
+import simd  // Phase 2: SIMD for 3D vector operations
 
 class LiveSessionManager: NSObject, ObservableObject {
     // Published properties
@@ -20,10 +24,19 @@ class LiveSessionManager: NSObject, ObservableObject {
     @Published var workoutCompleted = false
     @Published var bodyPoints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
     
+    // Phase 2: 3D joint positions in metric space
+    @Published var bodyPoints3D: [VNHumanBodyPoseObservation.JointName: simd_float3] = [:]
+    @Published var deviceMode: DeviceCapabilityMode = .standard
+    
     // Camera session
     var captureSession: AVCaptureSession?
     private let videoOutput = AVCaptureVideoDataOutput()
     private let sessionQueue = DispatchQueue(label: "sessionQueue")
+    
+    // Phase 2: Depth output for LiDAR/TrueDepth
+    private var depthOutput: AVCaptureDepthDataOutput?
+    private var outputSynchronizer: AVCaptureDataOutputSynchronizer?
+    private var depthDataMap: AVDepthData?
     
     // AI Trainer
     private var aiTrainer: AITrainerEngine?
@@ -31,6 +44,12 @@ class LiveSessionManager: NSObject, ObservableObject {
     private var sessionStartTime: Date?
     private var timer: Timer?
     private var feedbackHistory: [FeedbackItem] = []
+    
+    // Phase 2: Sensor fusion core
+    private var sensorFusion: SensorFusionCore?
+    
+    // Phase 5: Biometric data storage
+    private var biometricHistory: [BiometricResult] = []
     
     // Feedback managers
     private let voiceManager = VoiceFeedbackManager.shared
@@ -47,6 +66,14 @@ class LiveSessionManager: NSObject, ObservableObject {
     
     override init() {
         super.init()
+        
+        // Phase 2: Detect device capabilities
+        deviceMode = DeviceCapabilityManager.shared.mode
+        sensorFusion = SensorFusionCore(deviceMode: deviceMode)
+        
+        // Print system capability report
+        DeviceCapabilityManager.shared.printSystemReport()
+        
         setupCamera()
     }
     
@@ -75,6 +102,34 @@ class LiveSessionManager: NSObject, ObservableObject {
         let duration = Date().timeIntervalSince(sessionStartTime ?? Date())
         let accuracy = calculateAccuracy()
         
+        // Phase 5: Calculate average metrics
+        var averageMetrics: [String: Float]?
+        if !biometricHistory.isEmpty {
+            var metricsSum: [String: (sum: Float, count: Int)] = [:]
+            
+            for result in biometricHistory {
+                // Aggregate all metrics
+                for (key, value) in result.jointAngles {
+                    let current = metricsSum[key] ?? (0, 0)
+                    metricsSum[key] = (current.sum + value, current.count + 1)
+                }
+                for (key, value) in result.metricMeasurements {
+                    let current = metricsSum[key] ?? (0, 0)
+                    metricsSum[key] = (current.sum + value, current.count + 1)
+                }
+                for (key, value) in result.deviationMetrics {
+                    let current = metricsSum[key] ?? (0, 0)
+                    metricsSum[key] = (current.sum + abs(value), current.count + 1)
+                }
+            }
+            
+            // Calculate averages
+            averageMetrics = metricsSum.mapValues { $0.sum / Float($0.count) }
+        }
+        
+        // Phase 5: Convert biometric results to codable format
+        let biometricData = biometricHistory.map { BiometricResultData(from: $0) }
+        
         return WorkoutSession(
             workoutId: workout?.id ?? "unknown",
             workoutName: workout?.displayName ?? "Workout",
@@ -82,7 +137,10 @@ class LiveSessionManager: NSObject, ObservableObject {
             accuracyPercentage: accuracy,
             totalReps: currentRep,
             completedSets: currentSet,
-            feedbackItems: feedbackHistory
+            feedbackItems: feedbackHistory,
+            biometricData: biometricData.isEmpty ? nil : biometricData,
+            deviceMode: deviceMode.rawValue,
+            averageMetrics: averageMetrics
         )
     }
     
@@ -95,8 +153,23 @@ class LiveSessionManager: NSObject, ObservableObject {
         
         captureSession.sessionPreset = .high
         
-        guard let videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front),
-              let videoInput = try? AVCaptureDeviceInput(device: videoDevice) else {
+        // Phase 2: Get appropriate device based on capability mode
+        let videoDevice: AVCaptureDevice?
+        
+        if deviceMode == .pro,
+           let depthDevice = DeviceCapabilityManager.shared.getDepthCapableDevice(position: .front) {
+            // Pro mode: Use depth-capable device
+            videoDevice = depthDevice
+            print("✅ Using depth-capable camera for Pro mode")
+        } else {
+            // Standard mode: Use regular wide-angle camera
+            videoDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
+            print("ℹ️ Using standard camera")
+        }
+        
+        guard let device = videoDevice,
+              let videoInput = try? AVCaptureDeviceInput(device: device) else {
+            print("❌ Failed to create video input")
             return
         }
         
@@ -104,11 +177,46 @@ class LiveSessionManager: NSObject, ObservableObject {
             captureSession.addInput(videoInput)
         }
         
+        // Configure video output
         videoOutput.setSampleBufferDelegate(self, queue: sessionQueue)
         videoOutput.alwaysDiscardsLateVideoFrames = true
         
         if captureSession.canAddOutput(videoOutput) {
             captureSession.addOutput(videoOutput)
+        }
+        
+        // Phase 2: Setup depth output for Pro mode
+        if deviceMode == .pro {
+            setupDepthOutput(for: device)
+        }
+    }
+    
+    // MARK: - Phase 2: Depth Output Setup
+    
+    /// Configures depth data output for LiDAR/TrueDepth camera
+    /// Reference: https://developer.apple.com/documentation/avfoundation/capturing-depth-using-the-lidar-camera
+    private func setupDepthOutput(for device: AVCaptureDevice) {
+        guard let captureSession = captureSession else { return }
+        
+        // Create depth output
+        depthOutput = AVCaptureDepthDataOutput()
+        guard let depthOutput = depthOutput else { return }
+        
+        depthOutput.isFilteringEnabled = true  // Enable depth smoothing
+        
+        if captureSession.canAddOutput(depthOutput) {
+            captureSession.addOutput(depthOutput)
+            
+            // Synchronize RGB and depth data
+            outputSynchronizer = AVCaptureDataOutputSynchronizer(
+                dataOutputs: [videoOutput, depthOutput]
+            )
+            outputSynchronizer?.setDelegate(self, queue: sessionQueue)
+            
+            print("✅ Depth output configured with synchronization")
+        } else {
+            print("⚠️ Cannot add depth output, falling back to standard mode")
+            self.deviceMode = .standard
         }
     }
     
@@ -232,11 +340,14 @@ class LiveSessionManager: NSObject, ObservableObject {
 
 extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        // This delegate is used for Standard mode (no depth synchronization)
+        guard deviceMode == .standard else { return }
+        
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
             return
         }
         
-        // Process frame with Vision
+        // Standard mode: Use 2D Vision (legacy path)
         let request = VNDetectHumanBodyPoseRequest { [weak self] request, error in
             guard let self = self,
                   let observations = request.results as? [VNHumanBodyPoseObservation],
@@ -251,6 +362,7 @@ extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         try? handler.perform([request])
     }
     
+    // LEGACY: 2D pose processing (Standard mode)
     private func processBodyPose(_ observation: VNHumanBodyPoseObservation) {
         guard let aiTrainer = aiTrainer else { return }
         
@@ -282,6 +394,119 @@ extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         } else if currentRep > 0 && currentRep % 5 == 0 {
             provideFeedback("Great form! Keep it up!", severity: .good)
         }
+    }
+    
+    // MARK: - Phase 2/3: 3D Vision Processing with Biomechanics Analysis
+    
+    /// Processes 3D body pose with metric coordinates (Pro mode)
+    /// Reference: https://developer.apple.com/documentation/vision/vndetecthumanbodypose3drequest
+    @available(iOS 17.0, *)
+    private func processBodyPose3D(_ observation: VNHumanBodyPose3DObservation, depthData: AVDepthData?) {
+        guard let sensorFusion = sensorFusion,
+              let aiTrainer = aiTrainer else { return }
+        
+        // Fuse 3D pose with depth data to get metric coordinates
+        let metricJoints = sensorFusion.fuseDepthWithPose(
+            observation: observation,
+            depthData: depthData
+        )
+        
+        // Update 3D body points for visualization
+        DispatchQueue.main.async {
+            self.bodyPoints3D = metricJoints
+        }
+        
+        // Extract 2D points for legacy visualization compatibility
+        var points2D: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
+        
+        for (jointName, position3D) in metricJoints {
+            // Simple orthographic projection for 2D display
+            // Normalize coordinates to 0-1 range for screen display
+            points2D[jointName] = CGPoint(
+                x: CGFloat((position3D.x + 1.0) / 2.0),  // Convert from [-1,1] to [0,1]
+                y: CGFloat((position3D.y + 1.0) / 2.0)
+            )
+        }
+        
+        DispatchQueue.main.async {
+            self.bodyPoints = points2D
+        }
+        
+        // Phase 3: Use BiomechanicsEngine for 3D analysis
+        let timestamp = Date().timeIntervalSince(sessionStartTime ?? Date())
+        let biometricResult = aiTrainer.analyzeForm3D(
+            joints3D: metricJoints,
+            exercise: currentExercise,
+            timestamp: timestamp
+        )
+        
+        // Phase 5: Store biometric result for analytics
+        biometricHistory.append(biometricResult)
+        
+        // Convert BiometricResult to feedback
+        if !biometricResult.isCorrect {
+            provideFeedback(biometricResult.primaryFeedback, severity: .warning)
+        } else if currentRep > 0 && currentRep % 5 == 0 {
+            provideFeedback(biometricResult.primaryFeedback, severity: .good)
+        }
+        
+        // Debug: Print detailed metrics (remove in production)
+        #if DEBUG
+        if !biometricResult.jointAngles.isEmpty || !biometricResult.metricMeasurements.isEmpty {
+            print("📊 Biometric Analysis:")
+            print(biometricResult)
+        }
+        #endif
+    }
+}
+
+// MARK: - Phase 2: Synchronized Depth + RGB Delegate
+
+@available(iOS 17.0, *)
+extension LiveSessionManager: AVCaptureDataOutputSynchronizerDelegate {
+    
+    /// Handles synchronized RGB and depth data (Pro mode)
+    /// Reference: https://developer.apple.com/documentation/avfoundation/avcapturedataoutputsynchronizer
+    func dataOutputSynchronizer(
+        _ synchronizer: AVCaptureDataOutputSynchronizer,
+        didOutput synchronizedDataCollection: AVCaptureSynchronizedDataCollection
+    ) {
+        // Extract RGB sample buffer
+        guard let syncedVideoData = synchronizedDataCollection.synchronizedData(
+            for: videoOutput
+        ) as? AVCaptureSynchronizedSampleBufferData,
+              !syncedVideoData.sampleBufferWasDropped,
+              let pixelBuffer = CMSampleBufferGetImageBuffer(syncedVideoData.sampleBuffer) else {
+            return
+        }
+        
+        // Extract depth data (if available)
+        var depthData: AVDepthData?
+        if let depthOutput = depthOutput,
+           let syncedDepthData = synchronizedDataCollection.synchronizedData(
+            for: depthOutput
+           ) as? AVCaptureSynchronizedDepthData,
+           !syncedDepthData.depthDataWasDropped {
+            depthData = syncedDepthData.depthData
+        }
+        
+        // Store depth data for fusion
+        self.depthDataMap = depthData
+        
+        // Process with 3D Vision request
+        let request = VNDetectHumanBodyPose3DRequest { [weak self] request, error in
+            guard let self = self,
+                  let observations = request.results as? [VNHumanBodyPose3DObservation],
+                  let observation = observations.first else {
+                return
+            }
+            
+            self.processBodyPose3D(observation, depthData: depthData)
+        }
+        
+        // Execute Vision request
+        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
+        try? handler.perform([request])
     }
 }
 

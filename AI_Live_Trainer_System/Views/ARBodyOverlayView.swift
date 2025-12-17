@@ -2,6 +2,11 @@
 //  ARBodyOverlayView.swift
 //  AI Live Trainer System
 //
+//  ⚠️ LEGACY CODE - PHASE 1 DEPRECATION NOTICE
+//  This file contains simple 2D wireframe rendering.
+//  Being replaced with depth-aware rendering in DepthAwareSkeletonView.swift
+//  Reference: AXIS LABS Engine 2.0 Overhaul Plan - Phase 4
+//
 
 import SwiftUI
 import Vision
@@ -11,6 +16,8 @@ struct ARBodyOverlayView: View {
     let formCorrect: Bool
     
     var body: some View {
+        // LEGACY: Simple color-coded wireframe (green/red)
+        // REPLACEMENT: DepthAwareSkeletonView.swift with Z-depth gradient (Phase 4)
         Canvas { context, size in
             let wireframeColor = formCorrect ? Color.green : Color.red
             

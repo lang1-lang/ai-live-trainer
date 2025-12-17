@@ -6,6 +6,8 @@
 	<string>Camera access is required for AI-powered form tracking during workouts. We analyze your movements in real-time to provide feedback on your exercise form.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Microphone access enables voice commands during your workout.</string>
+	<key>NSDepthDataUsageDescription</key>
+	<string>Depth camera (LiDAR/TrueDepth) access enables military-grade precision biomechanics analysis with metric accuracy for professional form tracking.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>

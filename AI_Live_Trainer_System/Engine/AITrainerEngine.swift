@@ -2,10 +2,16 @@
 //  AITrainerEngine.swift
 //  AI Live Trainer System
 //
+//  ⚠️ LEGACY CODE - PHASE 1 DEPRECATION NOTICE
+//  This file contains 2D heuristic-based analysis.
+//  Being replaced with 3D vector physics in BiomechanicsEngine.swift
+//  Reference: AXIS LABS Engine 2.0 Overhaul Plan
+//
 
 import Foundation
 import Vision
 import CoreGraphics
+import simd  // Added for Phase 2/3: SIMD-accelerated vector operations
 
 struct FormAnalysisResult {
     let isCorrect: Bool
@@ -15,6 +21,37 @@ struct FormAnalysisResult {
 
 class AITrainerEngine {
     
+    // Phase 3: New biomechanics engine
+    private let biomechanicsEngine = BiomechanicsEngine()
+    
+    // Phase 3: 3D analysis with metric coordinates (Pro mode)
+    func analyzeForm3D(
+        joints3D: [VNHumanBodyPoseObservation.JointName: simd_float3],
+        exercise: String,
+        timestamp: TimeInterval
+    ) -> BiometricResult {
+        let exerciseLower = exercise.lowercased()
+        
+        // Route to 3D analyzer
+        if exerciseLower.contains("squat") {
+            return biomechanicsEngine.analyzeSquat3D(joints3D: joints3D, timestamp: timestamp)
+        } else if exerciseLower.contains("plank") {
+            return biomechanicsEngine.analyzePlank3D(joints3D: joints3D, timestamp: timestamp)
+        } else if exerciseLower.contains("push") {
+            return biomechanicsEngine.analyzePushUp3D(joints3D: joints3D, timestamp: timestamp)
+        } else if exerciseLower.contains("lunge") {
+            return biomechanicsEngine.analyzeLunge3D(joints3D: joints3D, timestamp: timestamp)
+        } else {
+            return BiometricResult(
+                isCorrect: true,
+                primaryFeedback: "Exercise not recognized",
+                confidence: 0.5,
+                timestamp: timestamp
+            )
+        }
+    }
+    
+    // LEGACY: 2D analysis (Standard mode fallback)
     func analyzeForm(observation: VNHumanBodyPoseObservation, exercise: String) -> FormAnalysisResult {
         let exerciseLower = exercise.lowercased()
         
@@ -34,6 +71,9 @@ class AITrainerEngine {
     
     // MARK: - Squat Analysis
     
+    // LEGACY: 2D heuristic analysis - uses Y-coordinate comparisons
+    // LIMITATION: Prone to foreshortening error, no absolute depth measurement
+    // REPLACEMENT: analyzeSquat3D() in BiomechanicsEngine.swift (Phase 3)
     private func analyzeSquat(observation: VNHumanBodyPoseObservation) -> FormAnalysisResult {
         guard let leftHip = try? observation.recognizedPoint(.leftHip),
               let rightHip = try? observation.recognizedPoint(.rightHip),
@@ -86,6 +126,8 @@ class AITrainerEngine {
     
     // MARK: - Plank Analysis
     
+    // LEGACY: 2D heuristic analysis
+    // REPLACEMENT: analyzePlank3D() in BiomechanicsEngine.swift (Phase 3)
     private func analyzePlank(observation: VNHumanBodyPoseObservation) -> FormAnalysisResult {
         guard let leftShoulder = try? observation.recognizedPoint(.leftShoulder),
               let rightShoulder = try? observation.recognizedPoint(.rightShoulder),
@@ -129,6 +171,8 @@ class AITrainerEngine {
     
     // MARK: - Push-Up Analysis
     
+    // LEGACY: 2D heuristic analysis
+    // REPLACEMENT: analyzePushUp3D() in BiomechanicsEngine.swift (Phase 3)
     private func analyzePushUp(observation: VNHumanBodyPoseObservation) -> FormAnalysisResult {
         guard let leftShoulder = try? observation.recognizedPoint(.leftShoulder),
               let rightShoulder = try? observation.recognizedPoint(.rightShoulder),
@@ -176,6 +220,8 @@ class AITrainerEngine {
     
     // MARK: - Lunge Analysis
     
+    // LEGACY: 2D heuristic analysis
+    // REPLACEMENT: analyzeLunge3D() in BiomechanicsEngine.swift (Phase 3)
     private func analyzeLunge(observation: VNHumanBodyPoseObservation) -> FormAnalysisResult {
         guard let leftHip = try? observation.recognizedPoint(.leftHip),
               let rightHip = try? observation.recognizedPoint(.rightHip),
