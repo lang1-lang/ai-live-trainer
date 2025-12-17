@@ -46,19 +46,27 @@ class SensorFusionCore {
         
         var metricJoints: [VNHumanBodyPoseObservation.JointName: simd_float3] = [:]
         
-        // Define all joints to extract using 3D joint names
+        // Define all joints using VERIFIED Apple 3D joint names
+        // Source: https://developer.apple.com/documentation/vision/vnhumanbodypose3dobservation/jointname
         let allJoints3D: [VNHumanBodyPose3DObservation.JointName] = [
-            .root, .centerHead, .centerShoulder,
+            .root,
+            .spine,
+            .centerShoulder,
+            .centerHead,
+            .topHead,
             .leftShoulder, .leftElbow, .leftWrist,
             .rightShoulder, .rightElbow, .rightWrist,
             .leftHip, .leftKnee, .leftAnkle,
             .rightHip, .rightKnee, .rightAnkle
         ]
         
-        // Mapping from 3D to 2D joint names
+        // Mapping from verified 3D joint names to 2D joint names for compatibility
+        // Verified: All 3D joint names exist in Apple documentation
         let jointMapping: [VNHumanBodyPose3DObservation.JointName: VNHumanBodyPoseObservation.JointName] = [
             .root: .root,
+            .spine: .root,  // Spine maps to root for 2D compatibility
             .centerHead: .nose,
+            .topHead: .nose,
             .centerShoulder: .neck,
             .leftShoulder: .leftShoulder,
             .leftElbow: .leftElbow,
@@ -194,19 +202,26 @@ class SensorFusionCore {
         
         var metricJoints: [VNHumanBodyPoseObservation.JointName: simd_float3] = [:]
         
-        // Use 3D joint names
+        // Use verified Apple 3D joint names
+        // Source: https://developer.apple.com/documentation/vision/vnhumanbodypose3dobservation/jointname
         let allJoints3D: [VNHumanBodyPose3DObservation.JointName] = [
-            .root, .centerHead, .centerShoulder,
+            .root,
+            .spine,
+            .centerShoulder,
+            .centerHead,
+            .topHead,
             .leftShoulder, .leftElbow, .leftWrist,
             .rightShoulder, .rightElbow, .rightWrist,
             .leftHip, .leftKnee, .leftAnkle,
             .rightHip, .rightKnee, .rightAnkle
         ]
         
-        // Mapping to 2D joint names for return type
+        // Verified mapping to 2D joint names for return type
         let jointMapping: [VNHumanBodyPose3DObservation.JointName: VNHumanBodyPoseObservation.JointName] = [
             .root: .root,
+            .spine: .root,
             .centerHead: .nose,
+            .topHead: .nose,
             .centerShoulder: .neck,
             .leftShoulder: .leftShoulder,
             .leftElbow: .leftElbow,
