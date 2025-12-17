@@ -135,7 +135,7 @@ struct DepthAwareSkeletonView: View {
             let displayText = "\(formatMetricKey(key)): \(value)"
             
             // Create text
-            var text = Text(displayText)
+            let text = Text(displayText)
                 .font(.system(size: 14, weight: .semibold, design: .monospaced))
                 .foregroundColor(.white)
             
@@ -202,12 +202,12 @@ struct DepthAwareSkeletonView: View {
             brightness = 0.9
         } else if absDepth < 2.0 {
             // Mid: Yellow-green transition
-            let t = (absDepth - 1.2) / 0.8
+            let t = Double(absDepth - 1.2) / 0.8
             hue = 0.33 - (t * 0.16)  // Green → Yellow
             brightness = 0.85
         } else if absDepth < 3.0 {
             // Far: Blue
-            let t = (absDepth - 2.0) / 1.0
+            let t = Double(absDepth - 2.0) / 1.0
             hue = 0.17 - (t * 0.5)  // Yellow → Blue
             brightness = 0.75
         } else {
