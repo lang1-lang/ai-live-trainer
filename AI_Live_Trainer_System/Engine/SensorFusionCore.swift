@@ -84,9 +84,10 @@ class SensorFusionCore {
             let depthWidth = CVPixelBufferGetWidth(depthMap)
             let depthHeight = CVPixelBufferGetHeight(depthMap)
             
-            for joint in allJoints {
-                if let recognizedPoint = try? observation.recognizedPoint(joint),
-                   recognizedPoint.confidence > 0.3 {
+            for joint3D in allJoints3D {
+                if let recognizedPoint = try? observation.recognizedPoint(joint3D),
+                   recognizedPoint.confidence > 0.3,
+                   let joint2D = jointMapping[joint3D] {
                     
                     // Get 2D normalized coordinates (0-1 range)
                     let normalizedX = recognizedPoint.location.x
