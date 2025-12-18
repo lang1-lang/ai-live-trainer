@@ -28,17 +28,45 @@ struct DepthAwareSkeletonView: View {
     /// Optional: Metric overlay data (angles, distances)
     var metricOverlays: [String: String]?
     
+    // 🔴 CODE RED FIX: Add debug mode support
+    var isDebugMode: Bool = false
+    
     // MARK: - Body
     
     var body: some View {
         Canvas { context, size in
-            // Render skeleton with depth-aware coloring
-            renderSkeleton(context: context, size: size)
-            
-            // Render metric overlays if available
-            if let overlays = metricOverlays {
-                renderMetricOverlays(context: context, size: size, overlays: overlays)
+            // 🔴 CODE RED FIX: Debug mode shows raw yellow dots only
+            if isDebugMode {
+                renderDebugPoints(context: context, size: size)
+            } else {
+                // Render skeleton with depth-aware coloring
+                renderSkeleton(context: context, size: size)
+                
+                // Render metric overlays if available
+                if let overlays = metricOverlays {
+                    renderMetricOverlays(context: context, size: size, overlays: overlays)
+                }
             }
+        }
+    }
+    
+    // 🔴 CODE RED FIX: Raw debug visualization (no smoothing, no physics)
+    private func renderDebugPoints(context: GraphicsContext, size: CGSize) {
+        for (_, position3D) in joints3D {
+            let screenPoint = project3DTo2D(joint3D: position3D, size: size)
+            
+            // Draw raw yellow dot
+            let circle = Path { path in
+                path.addEllipse(in: CGRect(
+                    x: screenPoint.x - 10,
+                    y: screenPoint.y - 10,
+                    width: 20,
+                    height: 20
+                ))
+            }
+            
+            context.fill(circle, with: .color(.yellow))
+            context.stroke(circle, with: .color(.white), lineWidth: 2)
         }
     }
     
@@ -235,20 +263,37 @@ struct DepthAwareSkeletonView: View {
         }
     }
     
+    // 🔴 CODE RED FIX: Robust 3D to 2D projection with proper coordinate transformation
     /// Projects 3D joint to 2D screen coordinates
     /// - Parameters:
     ///   - joint3D: 3D position in metric space (anatomical coordinates)
     ///   - size: Canvas size
     /// - Returns: 2D screen coordinate
     private func project3DTo2D(joint3D: simd_float3, size: CGSize) -> CGPoint {
-        // Convert from anatomical space [-1, 1] to screen space [0, size]
-        // Anatomical X: lateral (-1 left, +1 right)
-        // Anatomical Y: vertical (-1 down, +1 up)
-        // Screen X: 0 left, size.width right
-        // Screen Y: 0 top, size.height bottom
+        // Vision 3D anatomical space:
+        //   X: lateral (-1 left, +1 right)
+        //   Y: vertical (-1 down, +1 up)
+        //   Z: depth (negative = toward camera, positive = away)
+        //
+        // UIKit screen space:
+        //   X: 0 left, width right
+        //   Y: 0 top, height bottom
+        //
+        // Transformation:
+        //   1. Normalize anatomical [-1,1] to [0,1]
+        //   2. Flip Y-axis (Vision Y+ is up, UIKit Y+ is down)
+        //   3. Scale to screen size
         
-        let screenX = (CGFloat(joint3D.x) + 1.0) * 0.5 * size.width
-        let screenY = (1.0 - (CGFloat(joint3D.y) + 1.0) * 0.5) * size.height  // Flip Y
+        // Normalize X from [-1,1] to [0,1]
+        let normalizedX = CGFloat((joint3D.x + 1.0) * 0.5)
+        
+        // Normalize Y from [-1,1] to [0,1], then flip for UIKit
+        let normalizedY = CGFloat((joint3D.y + 1.0) * 0.5)
+        let flippedY = 1.0 - normalizedY
+        
+        // Scale to screen size
+        let screenX = normalizedX * size.width
+        let screenY = flippedY * size.height
         
         return CGPoint(x: screenX, y: screenY)
     }

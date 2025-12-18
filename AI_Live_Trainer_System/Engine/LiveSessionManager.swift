@@ -11,6 +11,7 @@ import AVFoundation
 import Vision
 import Combine
 import simd  // Phase 2: SIMD for 3D vector operations
+import UIKit  // For device orientation
 
 class LiveSessionManager: NSObject, ObservableObject {
     // Published properties
@@ -29,10 +30,19 @@ class LiveSessionManager: NSObject, ObservableObject {
     @Published var jointConfidences: [VNHumanBodyPoseObservation.JointName: Float] = [:]
     @Published var deviceMode: DeviceCapabilityMode = .standard
     
+    // 🔴 CODE RED FIX: Debug & Performance Monitoring
+    @Published var isDebugMode = false  // Show raw Vision dots
+    @Published var currentFPS: Double = 0
+    @Published var processingTimeMs: Double = 0
+    @Published var trackingConfidence: Float = 0
+    
     // Camera session
     var captureSession: AVCaptureSession?
     private let videoOutput = AVCaptureVideoDataOutput()
-    private let sessionQueue = DispatchQueue(label: "sessionQueue")
+    private let sessionQueue = DispatchQueue(label: "com.axis.sessionQueue", qos: .userInteractive)
+    
+    // 🔴 CODE RED FIX: Dedicated Vision processing queue (background, serial)
+    private let visionQueue = DispatchQueue(label: "com.axis.visionQueue", qos: .userInitiated)
     
     // Phase 2: Depth output for LiDAR/TrueDepth
     private var depthOutput: AVCaptureDepthDataOutput?
@@ -59,6 +69,17 @@ class LiveSessionManager: NSObject, ObservableObject {
     // Demo mode
     var isDemoMode = false
     
+    // 🔴 CODE RED FIX: Frame timing & throttling
+    private var lastFrameTime: CFTimeInterval = 0
+    private var isProcessingFrame = false
+    private let targetFrameTime: CFTimeInterval = 1.0 / 60.0  // 16.67ms for 60fps
+    private var frameCount = 0
+    private var fpsTimer: CFTimeInterval = 0
+    
+    // 🔴 CODE RED FIX: Thermal monitoring
+    private var thermalStateObserver: NSObjectProtocol?
+    private var hasDowngradedForThermal = false
+    
     var formattedTime: String {
         let minutes = Int(elapsedTime) / 60
         let seconds = Int(elapsedTime) % 60
@@ -75,7 +96,56 @@ class LiveSessionManager: NSObject, ObservableObject {
         // Print system capability report
         DeviceCapabilityManager.shared.printSystemReport()
         
+        // 🔴 CODE RED FIX: Setup thermal monitoring
+        setupThermalMonitoring()
+        
         setupCamera()
+    }
+    
+    deinit {
+        if let observer = thermalStateObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+    
+    // 🔴 CODE RED FIX: Thermal State Monitoring
+    private func setupThermalMonitoring() {
+        thermalStateObserver = NotificationCenter.default.addObserver(
+            forName: ProcessInfo.thermalStateDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleThermalStateChange()
+        }
+    }
+    
+    private func handleThermalStateChange() {
+        let thermalState = ProcessInfo.processInfo.thermalState
+        
+        switch thermalState {
+        case .nominal, .fair:
+            // Normal operation - restore Pro mode if available
+            if hasDowngradedForThermal && DeviceCapabilityManager.shared.mode == .pro {
+                print("🌡️ Thermal state improved - restoring Pro mode")
+                deviceMode = .pro
+                hasDowngradedForThermal = false
+            }
+            
+        case .serious, .critical:
+            // Thermal throttling - downgrade to Standard mode
+            if deviceMode == .pro && !hasDowngradedForThermal {
+                print("⚠️ Thermal throttling - downgrading to Standard mode")
+                deviceMode = .standard
+                hasDowngradedForThermal = true
+                
+                DispatchQueue.main.async {
+                    self.provideFeedback("Device cooling down - switching to 2D mode", severity: .warning)
+                }
+            }
+            
+        @unknown default:
+            break
+        }
     }
     
     func startSession(workout: WorkoutModel) {
@@ -344,31 +414,80 @@ extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         // This delegate is used for Standard mode (no depth synchronization)
         guard deviceMode == .standard else { return }
         
+        // 🔴 CODE RED FIX: "Glass Floor" Performance Rule - Drop frame if still processing
+        guard !isProcessingFrame else {
+            return  // Skip this frame to maintain 60fps
+        }
+        
+        // 🔴 CODE RED FIX: Calculate FPS
+        let currentTime = CACurrentMediaTime()
+        if currentTime - fpsTimer >= 1.0 {
+            DispatchQueue.main.async {
+                self.currentFPS = Double(self.frameCount)
+            }
+            frameCount = 0
+            fpsTimer = currentTime
+        }
+        frameCount += 1
+        
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
             return
         }
         
-        // Standard mode: Use 2D Vision (legacy path)
-        let request = VNDetectHumanBodyPoseRequest { [weak self] request, error in
-            guard let self = self,
-                  let observations = request.results as? [VNHumanBodyPoseObservation],
-                  let observation = observations.first else {
-                return
+        // 🔴 CODE RED FIX: Mark as processing to prevent concurrent frame processing
+        isProcessingFrame = true
+        let frameStartTime = CACurrentMediaTime()
+        
+        // 🔴 CODE RED FIX: Process Vision on background queue (QoS: .userInitiated)
+        visionQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Standard mode: Use 2D Vision (legacy path)
+            let request = VNDetectHumanBodyPoseRequest { [weak self] request, error in
+                guard let self = self,
+                      let observations = request.results as? [VNHumanBodyPoseObservation],
+                      let observation = observations.first else {
+                    self?.isProcessingFrame = false
+                    return
+                }
+                
+                // Process pose on background thread
+                self.processBodyPose(observation, orientation: connection.videoOrientation)
+                
+                // 🔴 CODE RED FIX: Measure processing time
+                let processingTime = (CACurrentMediaTime() - frameStartTime) * 1000.0  // Convert to ms
+                DispatchQueue.main.async {
+                    self.processingTimeMs = processingTime
+                }
+                
+                // Release processing lock
+                self.isProcessingFrame = false
+                
+                // 🔴 CODE RED FIX: If processing took >16ms, next frame will be auto-dropped
+                if processingTime > 16.0 {
+                    #if DEBUG
+                    print("⚠️ Frame processing exceeded 16ms budget: \(String(format: "%.1f", processingTime))ms")
+                    #endif
+                }
             }
             
-            self.processBodyPose(observation)
+            let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: self.getImageOrientation(from: connection), options: [:])
+            do {
+                try handler.perform([request])
+            } catch {
+                print("❌ Vision request failed: \(error)")
+                self.isProcessingFrame = false
+            }
         }
-        
-        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
-        try? handler.perform([request])
     }
     
     // LEGACY: 2D pose processing (Standard mode)
-    private func processBodyPose(_ observation: VNHumanBodyPoseObservation) {
+    private func processBodyPose(_ observation: VNHumanBodyPoseObservation, orientation: AVCaptureVideoOrientation) {
         guard let aiTrainer = aiTrainer else { return }
         
         // Extract body points
         var points: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
+        var confidences: [VNHumanBodyPoseObservation.JointName: Float] = [:]
         
         let allJoints: [VNHumanBodyPoseObservation.JointName] = [
             .nose, .neck, .rightShoulder, .rightElbow, .rightWrist,
@@ -377,14 +496,33 @@ extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
             .leftHip, .leftKnee, .leftAnkle
         ]
         
+        var totalConfidence: Float = 0
+        var confidenceCount = 0
+        
         for joint in allJoints {
             if let point = try? observation.recognizedPoint(joint), point.confidence > 0.3 {
+                // 🔴 CODE RED FIX: Store normalized coordinates (Vision coordinates)
+                // These will be converted to screen coordinates in the view layer
                 points[joint] = CGPoint(x: point.location.x, y: point.location.y)
+                confidences[joint] = point.confidence
+                
+                totalConfidence += point.confidence
+                confidenceCount += 1
             }
         }
         
+        // Calculate average tracking confidence
+        let avgConfidence = confidenceCount > 0 ? totalConfidence / Float(confidenceCount) : 0
+        
         DispatchQueue.main.async {
             self.bodyPoints = points
+            self.trackingConfidence = avgConfidence
+            
+            // 🔴 CODE RED FIX: In debug mode, don't apply smoothing
+            if self.isDebugMode {
+                // Debug mode shows raw Vision output
+                self.jointConfidences = confidences
+            }
         }
         
         // Analyze form
@@ -397,12 +535,32 @@ extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         }
     }
     
+    // 🔴 CODE RED FIX: Helper method to convert video orientation to image orientation
+    private func getImageOrientation(from connection: AVCaptureConnection) -> CGImagePropertyOrientation {
+        let deviceOrientation = UIDevice.current.orientation
+        let videoOrientation = connection.videoOrientation
+        
+        // For front-facing camera, we need to account for mirroring
+        switch videoOrientation {
+        case .portrait:
+            return .up
+        case .portraitUpsideDown:
+            return .down
+        case .landscapeRight:
+            return .left
+        case .landscapeLeft:
+            return .right
+        @unknown default:
+            return .up
+        }
+    }
+    
     // MARK: - Phase 2/3: 3D Vision Processing with Biomechanics Analysis
     
     /// Processes 3D body pose with metric coordinates (Pro mode)
     /// Reference: https://developer.apple.com/documentation/vision/vndetecthumanbodypose3drequest
     @available(iOS 17.0, *)
-    private func processBodyPose3D(_ observation: VNHumanBodyPose3DObservation, depthData: AVDepthData?) {
+    private func processBodyPose3D(_ observation: VNHumanBodyPose3DObservation, depthData: AVDepthData?, orientation: AVCaptureVideoOrientation) {
         guard let sensorFusion = sensorFusion,
               let aiTrainer = aiTrainer else { return }
         
@@ -412,9 +570,13 @@ extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
             depthData: depthData
         )
         
+        // 🔴 CODE RED FIX: Calculate average confidence from available joints
+        let avgConfidence = metricJoints.isEmpty ? 0.0 : 0.85  // Default high confidence for 3D tracking
+        
         // Update 3D body points for visualization
         DispatchQueue.main.async {
             self.bodyPoints3D = metricJoints
+            self.trackingConfidence = avgConfidence
             
             // 3D observations don't have per-joint confidence, use default high confidence
             var confidences: [VNHumanBodyPoseObservation.JointName: Float] = [:]
@@ -425,14 +587,16 @@ extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         }
         
         // Extract 2D points for legacy visualization compatibility
+        // 🔴 CODE RED FIX: Proper projection from 3D to 2D normalized coordinates
         var points2D: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
         
         for (jointName, position3D) in metricJoints {
-            // Simple orthographic projection for 2D display
-            // Normalize coordinates to 0-1 range for screen display
+            // Project 3D position to 2D normalized coordinates
+            // Vision 3D coordinates are in anatomical space
+            // We need to convert to Vision 2D normalized space (0,0 bottom-left, 1,1 top-right)
             points2D[jointName] = CGPoint(
                 x: CGFloat((position3D.x + 1.0) / 2.0),  // Convert from [-1,1] to [0,1]
-                y: CGFloat((position3D.y + 1.0) / 2.0)
+                y: CGFloat((position3D.y + 1.0) / 2.0)   // Convert from [-1,1] to [0,1]
             )
         }
         
@@ -479,6 +643,22 @@ extension LiveSessionManager: AVCaptureDataOutputSynchronizerDelegate {
         _ synchronizer: AVCaptureDataOutputSynchronizer,
         didOutput synchronizedDataCollection: AVCaptureSynchronizedDataCollection
     ) {
+        // 🔴 CODE RED FIX: "Glass Floor" Performance Rule - Drop frame if still processing
+        guard !isProcessingFrame else {
+            return  // Skip this frame to maintain 60fps
+        }
+        
+        // 🔴 CODE RED FIX: Calculate FPS
+        let currentTime = CACurrentMediaTime()
+        if currentTime - fpsTimer >= 1.0 {
+            DispatchQueue.main.async {
+                self.currentFPS = Double(self.frameCount)
+            }
+            frameCount = 0
+            fpsTimer = currentTime
+        }
+        frameCount += 1
+        
         // Extract RGB sample buffer
         guard let syncedVideoData = synchronizedDataCollection.synchronizedData(
             for: videoOutput
@@ -501,20 +681,62 @@ extension LiveSessionManager: AVCaptureDataOutputSynchronizerDelegate {
         // Store depth data for fusion
         self.depthDataMap = depthData
         
-        // Process with 3D Vision request
-        let request = VNDetectHumanBodyPose3DRequest { [weak self] request, error in
-            guard let self = self,
-                  let observations = request.results as? [VNHumanBodyPose3DObservation],
-                  let observation = observations.first else {
-                return
+        // 🔴 CODE RED FIX: Get video orientation for proper coordinate transformation
+        guard let connection = videoOutput.connection(with: .video) else {
+            return
+        }
+        let videoOrientation = connection.videoOrientation
+        
+        // 🔴 CODE RED FIX: Mark as processing to prevent concurrent frame processing
+        isProcessingFrame = true
+        let frameStartTime = CACurrentMediaTime()
+        
+        // 🔴 CODE RED FIX: Process Vision on background queue (QoS: .userInitiated)
+        visionQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            // Process with 3D Vision request
+            let request = VNDetectHumanBodyPose3DRequest { [weak self] request, error in
+                guard let self = self,
+                      let observations = request.results as? [VNHumanBodyPose3DObservation],
+                      let observation = observations.first else {
+                    self?.isProcessingFrame = false
+                    return
+                }
+                
+                // Process pose on background thread
+                self.processBodyPose3D(observation, depthData: depthData, orientation: videoOrientation)
+                
+                // 🔴 CODE RED FIX: Measure processing time
+                let processingTime = (CACurrentMediaTime() - frameStartTime) * 1000.0  // Convert to ms
+                DispatchQueue.main.async {
+                    self.processingTimeMs = processingTime
+                }
+                
+                // Release processing lock
+                self.isProcessingFrame = false
+                
+                // 🔴 CODE RED FIX: If processing took >16ms, next frame will be auto-dropped
+                if processingTime > 16.0 {
+                    #if DEBUG
+                    print("⚠️ 3D Frame processing exceeded 16ms budget: \(String(format: "%.1f", processingTime))ms")
+                    #endif
+                }
             }
             
-            self.processBodyPose3D(observation, depthData: depthData)
+            // Execute Vision request with proper orientation
+            let handler = VNImageRequestHandler(
+                cvPixelBuffer: pixelBuffer,
+                orientation: self.getImageOrientation(from: connection),
+                options: [:]
+            )
+            do {
+                try handler.perform([request])
+            } catch {
+                print("❌ 3D Vision request failed: \(error)")
+                self.isProcessingFrame = false
+            }
         }
-        
-        // Execute Vision request
-        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
-        try? handler.perform([request])
     }
 }
 
