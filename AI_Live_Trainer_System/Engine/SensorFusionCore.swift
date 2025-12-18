@@ -89,9 +89,6 @@ class SensorFusionCore {
             CVPixelBufferLockBaseAddress(depthMap, .readOnly)
             defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
             
-            let depthWidth = CVPixelBufferGetWidth(depthMap)
-            let depthHeight = CVPixelBufferGetHeight(depthMap)
-            
             for joint3D in allJoints3D {
                 if let point3D = try? observation.recognizedPoint(joint3D),
                    let joint2D = jointMapping[joint3D] {

@@ -452,7 +452,7 @@ extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
                 }
                 
                 // Process pose on background thread
-                self.processBodyPose(observation, orientation: connection.videoOrientation)
+                self.processBodyPose(observation, orientation: self.getVideoOrientation(from: connection))
                 
                 // 🔴 CODE RED FIX: Measure processing time
                 let processingTime = (CACurrentMediaTime() - frameStartTime) * 1000.0  // Convert to ms
@@ -535,10 +535,39 @@ extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         }
     }
     
+    // 🔴 CODE RED FIX: Helper method to get video orientation enum (handles iOS 17.0+ deprecation)
+    // Uses new videoRotationAngle API on iOS 17.0+, falls back to deprecated videoOrientation on earlier versions
+    private func getVideoOrientation(from connection: AVCaptureConnection) -> AVCaptureVideoOrientation {
+        // iOS 17.0+: Convert new videoRotationAngle API to enum
+        if #available(iOS 17.0, *) {
+            let rotationAngle = connection.videoRotationAngle
+            // Convert rotation angle (degrees) to AVCaptureVideoOrientation enum
+            // 0° = .portrait, 90° = .landscapeLeft, 180° = .portraitUpsideDown, 270° = .landscapeRight
+            switch Int(rotationAngle.rounded()) {
+            case 0, 360, -360:
+                return .portrait
+            case 90, -270:
+                return .landscapeLeft
+            case 180, -180:
+                return .portraitUpsideDown
+            case 270, -90:
+                return .landscapeRight
+            default:
+                return .portrait
+            }
+        } else {
+            // iOS 16 and earlier: Use deprecated videoOrientation (still works)
+            return connection.videoOrientation
+        }
+    }
+    
     // 🔴 CODE RED FIX: Helper method to convert video orientation to image orientation
+    // ⚠️ GRAPHICS DEBUG NOTE: The generic CIImage orientation might be defaulting to .up (Portrait)
+    // while the camera buffer is .right (Landscape). This causes the skeleton to look "sideways" or
+    // "scrambled" inside the bounding box. If debug labels appear rotated, hardcode the orientation
+    // to match the physical device orientation exactly.
     private func getImageOrientation(from connection: AVCaptureConnection) -> CGImagePropertyOrientation {
-        let deviceOrientation = UIDevice.current.orientation
-        let videoOrientation = connection.videoOrientation
+        let videoOrientation = getVideoOrientation(from: connection)
         
         // For front-facing camera, we need to account for mirroring
         switch videoOrientation {
@@ -685,7 +714,7 @@ extension LiveSessionManager: AVCaptureDataOutputSynchronizerDelegate {
         guard let connection = videoOutput.connection(with: .video) else {
             return
         }
-        let videoOrientation = connection.videoOrientation
+        let videoOrientation = getVideoOrientation(from: connection)
         
         // 🔴 CODE RED FIX: Mark as processing to prevent concurrent frame processing
         isProcessingFrame = true

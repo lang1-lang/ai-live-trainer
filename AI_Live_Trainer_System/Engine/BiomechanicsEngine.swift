@@ -177,7 +177,7 @@ class BiomechanicsEngine {
             p1: rightHip,
             p2: rightAnkle
         )
-        let avgKneeAngle = (leftKneeAngle + rightKneeAngle) / 2.0
+        let avgKneeAngle = (leftKneeAngle + rightKneeAngle) / 2.0 as Float
         
         jointAngles["knee_angle_deg"] = avgKneeAngle
         jointAngles["left_knee_angle_deg"] = leftKneeAngle
@@ -356,7 +356,6 @@ class BiomechanicsEngine {
         
         // Calculate average positions
         let avgShoulder = (leftShoulder + rightShoulder) / 2.0
-        let avgElbow = (leftElbow + rightElbow) / 2.0
         let avgWrist = (leftWrist + rightWrist) / 2.0
         let avgHip = (leftHip + rightHip) / 2.0
         
@@ -377,7 +376,7 @@ class BiomechanicsEngine {
             p1: rightShoulder,
             p2: rightWrist
         )
-        let avgElbowAngle = (leftElbowAngle + rightElbowAngle) / 2.0
+        let avgElbowAngle = (leftElbowAngle + rightElbowAngle) / 2.0 as Float
         
         jointAngles["elbow_angle_deg"] = avgElbowAngle
         jointAngles["left_elbow_angle_deg"] = leftElbowAngle
