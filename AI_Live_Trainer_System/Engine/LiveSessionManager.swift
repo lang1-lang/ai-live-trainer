@@ -456,7 +456,7 @@ extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
                 }
                 
                 // Process pose on background thread
-                self.processBodyPose(observation, orientation: self.getVideoOrientation(from: connection))
+                self.processBodyPose(observation)
                 
                 // 🔴 CODE RED FIX: Measure processing time
                 let processingTime = (CACurrentMediaTime() - frameStartTime) * 1000.0  // Convert to ms
@@ -486,7 +486,7 @@ extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
     }
     
     // LEGACY: 2D pose processing (Standard mode)
-    private func processBodyPose(_ observation: VNHumanBodyPoseObservation, orientation: AVCaptureVideoOrientation) {
+    private func processBodyPose(_ observation: VNHumanBodyPoseObservation) {
         guard let aiTrainer = aiTrainer else { return }
         
         // Extract body points
@@ -539,52 +539,44 @@ extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         }
     }
     
-    // 🔴 CODE RED FIX: Helper method to get video orientation enum (handles iOS 17.0+ deprecation)
-    // Uses new videoRotationAngle API on iOS 17.0+, falls back to deprecated videoOrientation on earlier versions
-    private func getVideoOrientation(from connection: AVCaptureConnection) -> AVCaptureVideoOrientation {
-        // iOS 17.0+: Convert new videoRotationAngle API to enum
+    // 🔴 iOS 17 FIX: Convert rotation angle directly to CGImagePropertyOrientation
+    // Maps videoRotationAngle (iOS 17+) or videoOrientation (iOS 16) to Vision Framework orientation
+    // ⚠️ GRAPHICS DEBUG NOTE: If skeleton appears rotated, verify device orientation matches mapping
+    private func getImageOrientation(from connection: AVCaptureConnection) -> CGImagePropertyOrientation {
         if #available(iOS 17.0, *) {
+            // iOS 17+: Use videoRotationAngle (degrees) directly
             let rotationAngle = connection.videoRotationAngle
-            // Convert rotation angle (degrees) to AVCaptureVideoOrientation enum
-            // 0° = .portrait, 90° = .landscapeLeft, 180° = .portraitUpsideDown, 270° = .landscapeRight
-            switch Int(rotationAngle.rounded()) {
+            let degrees = Int(rotationAngle.rounded())
+            
+            // Map rotation angle to CGImagePropertyOrientation
+            // 0° = .up (portrait), 90° = .right (landscape left), 180° = .down, 270° = .left (landscape right)
+            switch degrees {
             case 0, 360, -360:
-                return .portrait
+                return .up
             case 90, -270:
-                return .landscapeLeft
+                return .right
             case 180, -180:
-                return .portraitUpsideDown
+                return .down
             case 270, -90:
-                return .landscapeRight
+                return .left
             default:
-                return .portrait
+                return .up
             }
         } else {
-            // iOS 16 and earlier: Use deprecated videoOrientation (still works)
-            return connection.videoOrientation
-        }
-    }
-    
-    // 🔴 CODE RED FIX: Helper method to convert video orientation to image orientation
-    // ⚠️ GRAPHICS DEBUG NOTE: The generic CIImage orientation might be defaulting to .up (Portrait)
-    // while the camera buffer is .right (Landscape). This causes the skeleton to look "sideways" or
-    // "scrambled" inside the bounding box. If debug labels appear rotated, hardcode the orientation
-    // to match the physical device orientation exactly.
-    private func getImageOrientation(from connection: AVCaptureConnection) -> CGImagePropertyOrientation {
-        let videoOrientation = getVideoOrientation(from: connection)
-        
-        // For front-facing camera, we need to account for mirroring
-        switch videoOrientation {
-        case .portrait:
-            return .up
-        case .portraitUpsideDown:
-            return .down
-        case .landscapeRight:
-            return .left
-        case .landscapeLeft:
-            return .right
-        @unknown default:
-            return .up
+            // iOS 16 and earlier: Convert deprecated videoOrientation enum
+            let videoOrientation = connection.videoOrientation
+            switch videoOrientation {
+            case .portrait:
+                return .up
+            case .portraitUpsideDown:
+                return .down
+            case .landscapeRight:
+                return .left
+            case .landscapeLeft:
+                return .right
+            @unknown default:
+                return .up
+            }
         }
     }
     
@@ -593,7 +585,7 @@ extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
     /// Processes 3D body pose with metric coordinates (Pro mode)
     /// Reference: https://developer.apple.com/documentation/vision/vndetecthumanbodypose3drequest
     @available(iOS 17.0, *)
-    private func processBodyPose3D(_ observation: VNHumanBodyPose3DObservation, depthData: AVDepthData?, orientation: AVCaptureVideoOrientation) {
+    private func processBodyPose3D(_ observation: VNHumanBodyPose3DObservation, depthData: AVDepthData?) {
         guard let sensorFusion = sensorFusion,
               let aiTrainer = aiTrainer else { return }
         
@@ -604,7 +596,7 @@ extension LiveSessionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         )
         
         // 🔴 CODE RED FIX: Calculate average confidence from available joints
-        let avgConfidence = metricJoints.isEmpty ? 0.0 : 0.85  // Default high confidence for 3D tracking
+        let avgConfidence: Float = metricJoints.isEmpty ? 0.0 : 0.85  // Default high confidence for 3D tracking
         
         // Update 3D body points for visualization
         DispatchQueue.main.async {
@@ -714,11 +706,10 @@ extension LiveSessionManager: AVCaptureDataOutputSynchronizerDelegate {
         // Store depth data for fusion
         self.depthDataMap = depthData
         
-        // 🔴 CODE RED FIX: Get video orientation for proper coordinate transformation
+        // 🔴 CODE RED FIX: Get video connection for orientation handling
         guard let connection = videoOutput.connection(with: .video) else {
             return
         }
-        let videoOrientation = getVideoOrientation(from: connection)
         
         // 🔴 CODE RED FIX: Mark as processing to prevent concurrent frame processing
         isProcessingFrame = true
@@ -738,7 +729,7 @@ extension LiveSessionManager: AVCaptureDataOutputSynchronizerDelegate {
                 }
                 
                 // Process pose on background thread
-                self.processBodyPose3D(observation, depthData: depthData, orientation: videoOrientation)
+                self.processBodyPose3D(observation, depthData: depthData)
                 
                 // 🔴 CODE RED FIX: Measure processing time
                 let processingTime = (CACurrentMediaTime() - frameStartTime) * 1000.0  // Convert to ms
