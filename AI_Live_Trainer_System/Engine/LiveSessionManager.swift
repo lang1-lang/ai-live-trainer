@@ -250,7 +250,11 @@ class LiveSessionManager: NSObject, ObservableObject {
         
         // Configure video output
         videoOutput.setSampleBufferDelegate(self, queue: sessionQueue)
-        videoOutput.alwaysDiscardsLateVideoFrames = true
+        
+        // Frame dropping behavior (automatic in iOS 17+)
+        if #unavailable(iOS 17.0) {
+            videoOutput.alwaysDiscardsLateVideoFrames = true
+        }
         
         if captureSession.canAddOutput(videoOutput) {
             captureSession.addOutput(videoOutput)
